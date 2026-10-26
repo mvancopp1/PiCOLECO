@@ -67,7 +67,7 @@ inizio:
 newdir:
    cls
    BORDER 4
-   print at 34+7,"PiCOLECO v.1.0d"
+   print at 34+7,"PiCOLECO v.2.0M"
   
    VPOKE $1800,130
    FOR c= 1 TO 30

@@ -26,6 +26,10 @@
 
 #include "coleco_cart.h"
 #include "fatfs_disk.h"
+#include "hardware/vreg.h"
+#include "hardware/clocks.h"
+#include "pico/multicore.h"
+
 
 //void cdc_task(void);
 
@@ -82,37 +86,40 @@ void tud_cdc_rx_cb(uint8_t itf)
 
 int main(void)
 {
-   tusb_init();
-   stdio_init_all();   // for serial output, via printf()
-   
-    tud_init(BOARD_TUD_RHPORT);
-    gpio_init_mask(FLAG_MASK);
-    gpio_set_dir_in_masked(FLAG_MASK);
-   
-    while(1) {          
+  // Make sure the second CPU is not running the Cart/memory loop.
+  multicore_reset_core1();
+  // overclocking isn't necessary for most functions - but XEGS carts weren't working without it
+	// I guess we might as well have it on all the time.
+  /*
+  If we overclock the CPU above 225mhz we should consider increasing the voltage slightly.
+  We don't need much of an overclack. Most instabilities were around not keeping the
+  data on bus long enough in the _not_in_flash function (see comments).
+  200Mhz runs all carts tested 100% stable.
+  */
+  //vreg_set_voltage(VREG_VOLTAGE_1_30);
+  //sleep_ms(10);
+	set_sys_clock_khz(200000, true);
+  sleep_ms(10);
       
-    while (to_ms_since_boot(get_absolute_time()) < 200)
-    {
+  stdio_init_all();   // for serial output, via printf()
+  gpio_init_mask(FLAG_MASK);
+  gpio_set_dir_in_masked(FLAG_MASK);
+ 
+  while(1) {          
+    while (to_ms_since_boot(get_absolute_time()) < 300) {
       if ((gpio_get_all()&FLAG_MASK))
         coleco_cart_main();
     }
 
+    tusb_init();
+    tud_init(BOARD_TUD_RHPORT);
      
-       // init device stack on configured roothub port
-       // we are presumably powered from USB
-       // enter USB mass storage mode
-     //  tud_init(BOARD_TUD_RHPORT);
-     //  stdio_init_all();   // for serial output, via printf()
-     //  printf("Start\n");
-
-       while (1) {
-          tud_task(); // tinyusb device task
-         
-          cdc_task();
-       }
-    
+    while (1) {
+      tud_task(); // tinyusb device task
+      cdc_task();
     }
-   return 0;
+  }
+  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -147,4 +154,3 @@ void tud_resume_cb(void)
 {
 //  blink_interval_ms = BLINK_MOUNTED;
 }
-
