@@ -1,0 +1,4 @@
+COLECO:	equ 1
+SG1000:	equ 0
+MSX:	equ 0
+SGM:	equ 0

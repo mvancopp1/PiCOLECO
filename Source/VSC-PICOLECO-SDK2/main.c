@@ -87,7 +87,7 @@ void tud_cdc_rx_cb(uint8_t itf)
 int main(void)
 {
   // Make sure the second CPU is not running the Cart/memory loop.
-  multicore_reset_core1();
+  //multicore_reset_core1();
   // overclocking isn't necessary for most functions - but XEGS carts weren't working without it
 	// I guess we might as well have it on all the time.
   /*

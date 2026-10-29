@@ -6,6 +6,13 @@
 	'
 	' Creation date: Feb/29/2024.
 	'
+  // Mute SGM audio if installed
+  out 80,8
+  out 81,0
+  out 80,9
+  out 81,0
+  out 80,10
+  out 81,0
   
 	MODE 1
 	SCREEN DISABLE
@@ -36,9 +43,8 @@ loop:
      WAIT
    Next i   
    
-   
    mode 0
-   ' Make a reverse font
+     ' Make a reverse font
 	FOR #c = $000 TO $3ff
 		d = VPEEK(#c)
 		d = d XOR $ff 
@@ -54,35 +60,38 @@ loop:
 		d = d XOR $ff
 		VPOKE #c+$400,d 
 	NEXT #c
-	
- 
-inizio:
-    while peek($8000+5999)<>123
-	 poke ($f001),1 ' read dir
-	wend
-  
+
    DEFINE CHAR 128,8,riga
    DEFINE COLOR 128,8,riga_color
-   
+
+  startup_count = 0
+inizio:
+  while (peek($8000+5999)<>1) and (startup_count < 120)
+    poke ($f001),1 ' read dir
+    wait
+    startup_count = startup_count+1
+	wend
+
+  if (startup_count = 120) then
+    GOSUB setup_screen
+  	FOR c = 3 TO 22
+   	  vpoke $1800+32*c,129
+	    vpoke $1800+32*c+31,129
+  	  WAIT
+	  NEXT c
+	
+    VPOKE $1800+32*23,132
+    VPOKE $1800+32*23+31,133
+    print at (12 * 32) + 6, "Waiting for directory"
+    print at (13 * 32) + 8, "list to load..."
+    while (peek($8000+5999)<>1)
+      poke ($f001),1 ' read dir
+      wait
+    wend
+  end if
+
 newdir:
-   cls
-   BORDER 4
-   print at 34+7,"PiCOLECO v.2.0M"
-  
-   VPOKE $1800,130
-   FOR c= 1 TO 30
-     VPOKE $1800+c,128
-   NEXT c 
-   VPOKE $1800+31,131
-   VPOKE $1800+32,129
-   VPOKE $1800+63,129
-   VPOKE $1800+64,135
-   
-   FOR c= 1 TO 30
-     VPOKE $1800+64+c,128
-   NEXT c 
-   VPOKE $1800+95,134
-   
+    GOSUB setup_screen
     totfile=0
   	FOR c = 3 TO 22
       for i = 1 to 30
@@ -118,8 +127,10 @@ newdir:
       d#=vpeek($1800+i+((numfileold+2)*32))
       if numfileold<>0 then vpoke $1800+i+((numfileold+2)*32),d#-128
    NEXT i	 
-   print at 32*23+2,"Btn1->Sel"
-   print at 32*23+12,"Btn2->Dir-Up"
+   print at 32*23+1,"Bn1=Sel"
+   print at 32*23+9,"Bn2=PvDir"
+   print at 32*23+19,"L=PvPg"
+   print at 32*23+26,"R=NxPg"
 
   ' nf=peek(6130)
   ' print at 32*23+1,"ROMS from:"
@@ -130,7 +141,7 @@ newdir:
   ' nf=peek(6132)
   ' print at 32*23+22,"of:"
   ' print at 32*23+25,nf
-   
+ get_input:  
   c=cont
   while c=0
 	wait 
@@ -149,12 +160,12 @@ newdir:
    if (c=cont.up) and (numfile>1) THEN numfileold=numfile:numfile=numfile-1:goto scegli
 
    c=0
-   goto scegli
+   goto get_input
     
 nextpage:
    poke $8000+5999,0 ' wait for goto
    poke $f003,3 ' next page
-   print at 32*23,"--> Next DIR"
+   print at 32*23,"--> Next Page"
    for i=0 to 40:wait:next i
    while peek($8000+5999)<>1:wend
  
@@ -162,7 +173,7 @@ nextpage:
    
 prevpage:
    poke $f004,4 ' prev page
-   print at 32*23,"--> Prev DIR"
+   print at 32*23,"--> Prev Page"
    for i=0 to 40:wait:next i
    while peek($8000+5999)<>1:wend
    
@@ -212,6 +223,27 @@ reset_sound:    PROCEDURE
       SOUND 3,,0
     RETURN
     END
+
+setup_screen: PROCEDURE
+   cls
+   BORDER 4
+   print at 34+7,"PiCOLECO v.2.01M"
+  
+   VPOKE $1800,130
+   FOR c= 1 TO 30
+     VPOKE $1800+c,128
+   NEXT c 
+   VPOKE $1800+31,131
+   VPOKE $1800+32,129
+   VPOKE $1800+63,129
+   VPOKE $1800+64,135
+   
+   FOR c= 1 TO 30
+     VPOKE $1800+64+c,128
+   NEXT c 
+   VPOKE $1800+95,134
+   return
+   END
 
 saved_string:
 	DATA BYTE "Test string",0

@@ -183,6 +183,7 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
     // Initial conditions
     SET_DATA_MODE_IN;
     
+	while(1) {
     while(bankswitch==0) {	
 	pins=gpio_get_all();
 	Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);
@@ -240,8 +241,7 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 	} 	
   }	  // game choosen at this point!
 
-  if (bankswitch==1) {
-    while (1) {
+    while (bankswitch==1) {
   	  pins=gpio_get_all();
 	  Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
 	  addr = (pins & BUS_PIN_MASK);
@@ -262,7 +262,7 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
    		SET_DATA_MODE_IN;
 	  }  	
     }	  
-   } else if ((bankswitch==2)||(bankswitch==4)) { //128k
+   if ((bankswitch==2)||(bankswitch==4)) { //128k
 		bank=0;
 		uint32_t romBankMask;
 		uint32_t romOffset = 0;
@@ -275,7 +275,7 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 			romOffset = 0xc000;
 		}
 		uint32_t enabledBank = 0;
-		while (1) {
+		while ((bankswitch==2)||(bankswitch==4)) {
 			pins=gpio_get_all();
 			//Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
 			enabledBank=(pins & FLAG_MASK);	
@@ -334,7 +334,7 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 	  uint32_t enableBank=0;
 	  bank=1;
 	  uint32_t addrOffset = 0x0;
-	  while (1) {
+	  while (bankswitch==3) {
 		pins=gpio_get_all();
 	  	addr = (pins & BUS_PIN_MASK);
 		  if ((pins & FLAG_MASK)!=0x0f000000) {
@@ -390,6 +390,7 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 	}
    }
 }
+}
 #pragma GCC pop_options
 ////////////////////////////////////////////////////////////////////////////////////
 //                     MENU Reset
@@ -399,26 +400,14 @@ void reset() {
    
  //multicore_lockout_start_blocking();	
 
-  for (int i=0;i<2;i++) {
-	while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
-	SET_DATA_MODE_OUT;
-	gpio_put_masked(DATA_PIN_MASK,0xc7<<16);
-	sleep_ms(1);
-	SET_DATA_MODE_IN;
-
-	while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
-	SET_DATA_MODE_OUT;
-	gpio_put_masked(DATA_PIN_MASK,0x38<<16);
-	sleep_ms(1);
-	SET_DATA_MODE_IN;
+  for (int i=0;i<6;i++) {
 	
-	while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
+	//while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
 	SET_DATA_MODE_OUT;
 	gpio_put_masked(DATA_PIN_MASK,0xc7<<16);
-	sleep_ms(1);
+	sleep_ms(3);
 	SET_DATA_MODE_IN;
 
-	sleep_ms(100);
   }
 
   //multicore_lockout_end_blocking();
@@ -869,14 +858,21 @@ void LoadGame(){
 		}
 
 		/*
-		Pause long enough to read Coleco sreen in case info 
+		Pause long enough to read Coleco screen in case info 
 		needed for debugging/issue reproduction.
 		*/
 		sleep_ms(500);
 	
+		/*
+		Set to an invalid rom type so the _not_in_rom will not
+		process data requests while loading.
+		*/
+		//bankswitch=-1;
 	    int br=load_file(path);  // load rom in files[]
 	    bankswitch=bksw;
         
+		reset();
+		sleep_ms(5);
 		reset(); 
 	
 	/* 
@@ -914,7 +910,7 @@ void LoadGame(){
 void coleco_cart_main()
 {
     gpio_init_mask(ALL_GPIO_MASK);
-
+	bankswitch = -1;
 	/* 
 	Update: 2024-06-06
 	Some of the Pico boards do not drive enough current when
@@ -930,26 +926,23 @@ void coleco_cart_main()
     gpio_set_drive_strength(D6_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
     gpio_set_drive_strength(D7_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
     
-	bankswitch = 0;
 	memset(ROM,0,BINLENGTH);	
 	memcpy(ROM,_acsplash,sizeof(_acsplash));
-	colecoMenu(1); // POI VIA
-	multicore_launch_core1(core1_main);
-	reset();
-	sleep_ms(10);
-	reset();
-	sleep_ms(10);
-
-	ROM[5999]=123;
-	fileda=0;
-    
-	// Initial conditions 
+	//sleep_ms(200);
+	//memset(ROM,0,BINLENGTH);	
+	//memcpy(ROM,_acsplash,sizeof(_acsplash));
 	curPath[0]=0;
+	bankswitch = 0;
+	fileda=0;
+	multicore_launch_core1(core1_main);
+    reset();
+
+	// Initial conditions 
 	while (1) {
 		cmd_executing=false;
 		cmd=ROM[0xf000];
 
-		if ((cmd>0)&&!(cmd_executing)) {
+		if ((cmd>0)&&!(cmd_executing)&&(bankswitch==0)) {
 		switch (cmd) {
 		case 1:  // read file list
 			cmd_executing=true;
