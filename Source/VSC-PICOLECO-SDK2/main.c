@@ -102,12 +102,12 @@ int main(void)
   sleep_ms(10);
       
   stdio_init_all();   // for serial output, via printf()
-  gpio_init_mask(FLAG_MASK);
-  gpio_set_dir_in_masked(FLAG_MASK);
+  gpio_init_mask(0x0FFF7FFF);
+  gpio_set_dir_in_masked(0x0FFF7FFF);
  
   while(1) {          
     while (to_ms_since_boot(get_absolute_time()) < 300) {
-      if ((gpio_get_all()&FLAG_MASK))
+      if ((gpio_get_all()&0x0FFF7FFF))
         coleco_cart_main();
     }
 

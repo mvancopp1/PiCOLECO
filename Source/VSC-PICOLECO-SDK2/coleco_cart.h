@@ -22,5 +22,6 @@
 #define FLAG_MASK       0x0F000000L
 
 void coleco_cart_main();
+void reset();
 
 #endif

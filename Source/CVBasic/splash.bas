@@ -227,7 +227,7 @@ reset_sound:    PROCEDURE
 setup_screen: PROCEDURE
    cls
    BORDER 4
-   print at 34+7,"PiCOLECO v.2.01M"
+   print at 34+7,"PiCOLECO v.2.02M"
   
    VPOKE $1800,130
    FOR c= 1 TO 30

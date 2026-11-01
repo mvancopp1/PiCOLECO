@@ -28,6 +28,7 @@
 #include "pico/divider.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
+#include "coleco_cart.h"
 
 
 #include "rom.h"
@@ -134,11 +135,22 @@ int fileda=0,filea=0;
 volatile char cmd=0;
 char errorBuf[40];
 bool cmd_executing;
-volatile int bankswitch = 0;
 int bksw=0;
 int romsize;
 int lastpos;
-
+volatile bool cartLoading = false;
+volatile int tmpBankSwitch = 0;
+volatile int bankswitch = 0;
+unsigned char resetCart[96] = {
+	0x55, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x80,
+	0x06, 0x03, 0x0E, 0x08, 0x79, 0xD3, 0x50, 0xAF, 0xD3, 0x51, 0x0C, 0x10,
+	0xF7, 0x3E, 0x9F, 0xD3, 0xFF, 0x3E, 0xBF, 0xD3, 0xFF, 0x3E, 0xDF, 0xD3,
+	0xFF, 0x3E, 0xFF, 0xD3, 0xFF, 0x3E, 0x00, 0xD3, 0xA1, 0x3E, 0x80, 0xD3,
+	0xA1, 0x3E, 0x00, 0xD3, 0xA1, 0x3E, 0x81, 0xD3, 0xA1, 0xDB, 0xA1, 0x21,
+	0x49, 0x80, 0x11, 0x00, 0x62, 0x01, 0x64, 0x00, 0xED, 0xB0, 0xC3, 0x00,
+	0x62, 0x3A, 0x42, 0x84, 0x06, 0x0A, 0x00, 0x10, 0xFD, 0xFE, 0xFF, 0x28,
+	0xF4, 0x3A, 0x43, 0x84, 0x06, 0x64, 0x00, 0x10, 0xFD, 0xC3, 0x00, 0x00
+};
 
 ////////////////////////////////////////////////////////////////////////////////////
 //                     Error(N)
@@ -184,16 +196,71 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
     SET_DATA_MODE_IN;
     
 	while(1) {
-    while(bankswitch==0) {	
-	pins=gpio_get_all();
-	Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);
-	if (Ena_bank!=0b1111) {
-		addr = (pins & BUS_PIN_MASK);
-		if (Ena_bank==0b0111) {
-	 	  if ((addr >= 0x7000)) {		
-			if (addr>=0x7100) {
+		while(bankswitch==0) {	
+			pins=gpio_get_all();
+			Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);
+			if (Ena_bank!=0b1111) {
+				addr = (pins & BUS_PIN_MASK);
+				if (Ena_bank==0b0111) {
+					if ((addr >= 0x7000)) {		
+						if (addr>=0x7100) {
+							SET_DATA_MODE_OUT;
+							gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
+							/*
+							Update: 2024-06-06
+							Wait for the cycle to complete before relasing the data. If we
+							release it to soon the data is intermittantly missed. This caused 
+							many cartridges to be flaky. We don't need more CPU sppeed, just 
+							the waiting works fine.
+							*/
+							while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
+								pins--;
+							}
+							SET_DATA_MODE_IN;
+							ROM[0xf001]=addr-0x7100;
+						} else {	
+							SET_DATA_MODE_OUT;
+							gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
+							/*
+							Update: 2024-06-06
+							Wait for the cycle to complete before relasing the data. If we
+							release it to soon the data is intermittantly missed. This caused 
+							many cartridges to be flaky. We don't need more CPU sppeed, just 
+							the waiting works fine.
+							*/
+							while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
+								pins--;
+							}
+							SET_DATA_MODE_IN;
+							ROM[0xf000]=addr-0x7000;
+						} 
+					}
+				} else {
+					SET_DATA_MODE_OUT;
+					gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
+					/*
+					Update: 2024-06-06
+					Wait for the cycle to complete before relasing the data. If we
+					release it to soon the data is intermittantly missed. This caused 
+					many cartridges to be flaky. We don't need more CPU sppeed, just 
+					the waiting works fine.
+					*/
+					while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
+						pins--;
+					}
+					SET_DATA_MODE_IN;
+				}
+			} 	
+		}	  // game choosen at this point!
+
+		while (bankswitch==1) {
+			pins=gpio_get_all();
+			Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
+			addr = (pins & BUS_PIN_MASK);
+			if (Ena_bank!=0b1111) {
+				addr = (pins & BUS_PIN_MASK);
 				SET_DATA_MODE_OUT;
-    			gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
+				gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
 				/*
 				Update: 2024-06-06
 				Wait for the cycle to complete before relasing the data. If we
@@ -204,149 +271,38 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 				while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
 					pins--;
 				}
-    			SET_DATA_MODE_IN;
-				ROM[0xf001]=addr-0x7100;
-		    } else {	
-		    SET_DATA_MODE_OUT;
-    		gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
-			/*
-			Update: 2024-06-06
-			Wait for the cycle to complete before relasing the data. If we
-			release it to soon the data is intermittantly missed. This caused 
-			many cartridges to be flaky. We don't need more CPU sppeed, just 
-			the waiting works fine.
-			*/
-			while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
-				pins--;
-			}
-    		SET_DATA_MODE_IN;
-			ROM[0xf000]=addr-0x7000;
-			} 
-		   }
-		  } else {
-			SET_DATA_MODE_OUT;
-    		gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
-			/*
-			Update: 2024-06-06
-			Wait for the cycle to complete before relasing the data. If we
-			release it to soon the data is intermittantly missed. This caused 
-			many cartridges to be flaky. We don't need more CPU sppeed, just 
-			the waiting works fine.
-			*/
-			while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
-				pins--;
-			}
-    		SET_DATA_MODE_IN;
-		}
-	} 	
-  }	  // game choosen at this point!
-
-    while (bankswitch==1) {
-  	  pins=gpio_get_all();
-	  Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
-	  addr = (pins & BUS_PIN_MASK);
-	  if (Ena_bank!=0b1111) {
-		addr = (pins & BUS_PIN_MASK);
-		SET_DATA_MODE_OUT;
-   		gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
-		/*
-		Update: 2024-06-06
-		Wait for the cycle to complete before relasing the data. If we
-		release it to soon the data is intermittantly missed. This caused 
-		many cartridges to be flaky. We don't need more CPU sppeed, just 
-		the waiting works fine.
-		*/
-		while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
-			pins--;
-		}
-   		SET_DATA_MODE_IN;
-	  }  	
-    }	  
-   if ((bankswitch==2)||(bankswitch==4)) { //128k
-		bank=0;
-		uint32_t romBankMask;
-		uint32_t romOffset = 0;
-		uint32_t addrOffset = 0;
-		if (bankswitch==2) {
-			romBankMask=7;
-			romOffset = 0x1c000;
-		} else {
-			romBankMask=3;
-			romOffset = 0xc000;
-		}
-		uint32_t enabledBank = 0;
-		while ((bankswitch==2)||(bankswitch==4)) {
-			pins=gpio_get_all();
-			//Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
-			enabledBank=(pins & FLAG_MASK);	
-			addr = (pins & BUS_PIN_MASK);
-			switch (enabledBank) {
-		//      case 0b1111: break;
-				case 0xf000000: break;
-		//    	case 0b1110:
-				case 0xe000000:
-				/////////////////// $8000 /////////////////// 
-		//    	case 0b1101: 	
-				case 0xd000000: 	
-				/////////////////// $A000 /////////////////// 
-					SET_DATA_MODE_OUT;
-					gpio_put_masked(DATA_PIN_MASK,ROM[addr+romOffset]<<16);
-					/*
-					Update: 2024-06-06
-					Wait for the cycle to complete before relasing the data. If we
-					release it to soon the data is intermittantly missed. This caused 
-					many cartridges to be flaky. We don't need more CPU sppeed, just 
-					the waiting works fine.
-					*/
-					while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
-						pins--;
-					}
-					SET_DATA_MODE_IN;      
-					break;
-		//	   	case 0b1011: 	
-				case 0xb000000: 	
-				/////////////////// $C000 /////////////////// 
-		//	   	case 0b0111: 	
-				case 0x7000000: 	
-				/////////////////// $E000 /////////////////// 
-					if (addr>=0x7fc0) {
-						bank=((addr & romBankMask));
-						addrOffset = lookup_bank[bank] - 0x4000;
-					}
-					SET_DATA_MODE_OUT;
-					gpio_put_masked(DATA_PIN_MASK,ROM[addr+addrOffset]<<16);
-					/*
-					Update: 2024-06-06
-					Wait for the cycle to complete before relasing the data. If we
-					release it to soon the data is intermittantly missed. This caused 
-					many cartridges to be flaky. We don't need more CPU sppeed, just 
-					the waiting works fine.
-					*/
-					while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
-						pins--;
-					}
-					// wait for the bus to be released
-					SET_DATA_MODE_IN;   
-					break;
-			}	
-		}
-    } else if (bankswitch==3) {
-	  uint32_t enableBank=0;
-	  bank=1;
-	  uint32_t addrOffset = 0x0;
-	  while (bankswitch==3) {
-		pins=gpio_get_all();
-	  	addr = (pins & BUS_PIN_MASK);
-		  if ((pins & FLAG_MASK)!=0x0f000000) {
-     		if (addr<0x4000) {
-				SET_DATA_MODE_OUT;
-				gpio_put_masked(DATA_PIN_MASK, ROM[addr] << 16);
 				SET_DATA_MODE_IN;
-			} else { 
-				switch (pins & 0x00007ff0) {
-					case (0x7f80): {
+			}  	
+		}	  
+		if ((bankswitch==2)||(bankswitch==4)) { //128k
+			bank=0;
+			uint32_t romBankMask;
+			uint32_t romOffset = 0;
+			uint32_t addrOffset = 0;
+			if (bankswitch==2) {
+				romBankMask=7;
+				romOffset = 0x1c000;
+			} else {
+				romBankMask=3;
+				romOffset = 0xc000;
+			}
+			uint32_t enabledBank = 0;
+			while ((bankswitch==2)||(bankswitch==4)) {
+				pins=gpio_get_all();
+				//Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
+				enabledBank=(pins & FLAG_MASK);	
+				addr = (pins & BUS_PIN_MASK);
+				switch (enabledBank) {
+			//      case 0b1111: break;
+					case 0xf000000: break;
+			//    	case 0b1110:
+					case 0xe000000:
+					/////////////////// $8000 /////////////////// 
+			//    	case 0b1101: 	
+					case 0xd000000: 	
+					/////////////////// $A000 /////////////////// 
 						SET_DATA_MODE_OUT;
-						gpio_put_masked(DATA_PIN_MASK, 0);
+						gpio_put_masked(DATA_PIN_MASK,ROM[addr+romOffset]<<16);
 						/*
 						Update: 2024-06-06
 						Wait for the cycle to complete before relasing the data. If we
@@ -357,15 +313,20 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 						while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
 							pins--;
 						}
-						SET_DATA_MODE_IN;
+						SET_DATA_MODE_IN;      
 						break;
-					}
-    				case (0x7f90): { bank = 1;addrOffset = 0; break; }
-					case (0x7fa0) : { bank = 2;addrOffset = 0x4000; break; }
-					case (0x7fb0): { bank = 3;addrOffset = (uint32_t)(2 * 0x4000); break; }
-					default: {
+			//	   	case 0b1011: 	
+					case 0xb000000: 	
+					/////////////////// $C000 /////////////////// 
+			//	   	case 0b0111: 	
+					case 0x7000000: 	
+					/////////////////// $E000 /////////////////// 
+						if (addr>=0x7fc0) {
+							bank=((addr & romBankMask));
+							addrOffset = lookup_bank[bank] - 0x4000;
+						}
 						SET_DATA_MODE_OUT;
-						gpio_put_masked(DATA_PIN_MASK, ROM[addr + addrOffset] << 16);
+						gpio_put_masked(DATA_PIN_MASK,ROM[addr+addrOffset]<<16);
 						/*
 						Update: 2024-06-06
 						Wait for the cycle to complete before relasing the data. If we
@@ -376,43 +337,145 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 						while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
 							pins--;
 						}
-						SET_DATA_MODE_IN;
+						// wait for the bus to be released
+						SET_DATA_MODE_IN;   
 						break;
+				}	
+			}
+		} else if (bankswitch==3) {
+			uint32_t enableBank=0;
+			bank=1;
+			uint32_t addrOffset = 0x0;
+			while (bankswitch==3) {
+				pins=gpio_get_all();
+				addr = (pins & BUS_PIN_MASK);
+				if ((pins & FLAG_MASK)!=0x0f000000) {
+					if (addr<0x4000) {
+						SET_DATA_MODE_OUT;
+						gpio_put_masked(DATA_PIN_MASK, ROM[addr] << 16);
+						SET_DATA_MODE_IN;
+					} else { 
+						switch (pins & 0x00007ff0) {
+							case (0x7f80):
+								SET_DATA_MODE_OUT;
+								gpio_put_masked(DATA_PIN_MASK, 0);
+								/*
+								Update: 2024-06-06
+								Wait for the cycle to complete before relasing the data. If we
+								release it to soon the data is intermittantly missed. This caused 
+								many cartridges to be flaky. We don't need more CPU sppeed, just 
+								the waiting works fine.
+								*/
+								while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
+									pins--;
+								}
+								SET_DATA_MODE_IN;
+								break;
+							case (0x7f90):
+								bank = 1;
+								addrOffset = 0;
+								break;
+							case (0x7fa0) : 
+								bank = 2;
+								addrOffset = 0x4000;
+								break;
+							case (0x7fb0):
+								bank = 3;
+								addrOffset = (uint32_t)(2 * 0x4000);
+								break;
+							default:
+								SET_DATA_MODE_OUT;
+								gpio_put_masked(DATA_PIN_MASK, ROM[addr + addrOffset] << 16);
+								/*
+								Update: 2024-06-06
+								Wait for the cycle to complete before relasing the data. If we
+								release it to soon the data is intermittantly missed. This caused 
+								many cartridges to be flaky. We don't need more CPU sppeed, just 
+								the waiting works fine.
+								*/
+								while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
+									pins--;
+								}
+								SET_DATA_MODE_IN;
+								break;
+						}
 					}
+				} else {
+					// This code doesn't do anything but without it the loop fails
+					// and the cart doesn't work. It must be an optimizer issue or 
+					// loop speed issue.
+					uint32_t bankaddr1 = (pins & 0x00007f00);
 				}
 			}
-		} else {
-			  // This code doesn't do anything but without it the loop fails
-			  // and the cart doesn't work. It must be an optimizer issue or 
-			  // loop speed issue.
-			  uint32_t bankaddr1 = (pins & 0x00007f00);
+		}
+		if (bankswitch == -1) {
+			cartLoading = true;
+			reset();
+			while (bankswitch == -1) {
+				pins=gpio_get_all();
+				Ena_bank=((pins & FLAG_MASK)>>FCE0_PIN);	
+				if (Ena_bank == 0b1110) {
+					addr = (pins & BUS_PIN_MASK);
+					SET_DATA_MODE_OUT;
+					switch (addr) {
+						case 0x442:
+							gpio_put_masked(DATA_PIN_MASK, cartLoading ? 0xffffffff : 0);
+							break;
+						case 0x443:
+							bankswitch = tmpBankSwitch;
+							break;
+						default:
+							gpio_put_masked(DATA_PIN_MASK, (resetCart[addr]) << 16);
+							break;
+					}
+					/*
+					Update: 2024-06-06
+					Wait for the cycle to complete before relasing the data. If we
+					release it to soon the data is intermittantly missed. This caused 
+					many cartridges to be flaky. We don't need more CPU sppeed, just 
+					the waiting works fine.
+					*/
+					while ((gpio_get_all() & FLAG_MASK) != 0x0f000000) {
+						pins--;
+					}
+					SET_DATA_MODE_IN;
+				} else {
+					// This code doesn't do anything but without it the loop fails
+					// and the cart doesn't work. It must be an optimizer issue or 
+					// loop speed issue.
+					uint32_t bankaddr1 = (pins & 0x00007f00);
+				}
+			}
 		}
 	}
-   }
 }
-}
+
 #pragma GCC pop_options
 ////////////////////////////////////////////////////////////////////////////////////
 //                     MENU Reset
 ////////////////////////////////////////////////////////////////////////////////////    
-
-void reset() {
+void flexible_reset(uint loop_count) {
    
- //multicore_lockout_start_blocking();	
+  //multicore_lockout_start_blocking();	
 
-  for (int i=0;i<6;i++) {
-	
-	//while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
-	SET_DATA_MODE_OUT;
-	gpio_put_masked(DATA_PIN_MASK,0xc7<<16);
-	sleep_ms(3);
-	SET_DATA_MODE_IN;
-
+  if (loop_count > 0) {
+	for (int i=0;i<6;i++) {
+		//while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
+		SET_DATA_MODE_OUT;
+		gpio_put_masked(DATA_PIN_MASK,0xc7<<16);
+		sleep_ms(5);
+		SET_DATA_MODE_IN;
+	}
   }
-
-  //multicore_lockout_end_blocking();
+//  multicore_lockout_end_blocking();
 
 }       
+
+void reset()
+{
+	flexible_reset(3);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 
@@ -421,7 +484,7 @@ typedef struct {
 	char filename[13];
 	char long_filename[32];
 	char full_path[210];
-} DIR_ENTRY;	// 256 bytes = 256 entries in 64k
+}  DIR_ENTRY;	// 256 bytes = 256 entries in 64k
 
 int num_dir_entries = 0; // how many entries in the current directory
 
@@ -679,15 +742,15 @@ int load_file(char *filename) {
 	Update: 2024-06-06
 	Pause other CPU when update the cartridge space.
 	*/
-	multicore_lockout_start_blocking();	
+	//multicore_lockout_start_blocking();	
 
 	if (f_mount(&FatFs, "", 1) != FR_OK) {
-	 	multicore_lockout_end_blocking();	
+	 	//multicore_lockout_end_blocking();	
 		error(1);
 	}
 	FIL fil;
 	if (f_open(&fil, filename, FA_READ) != FR_OK) {
-	 	multicore_lockout_end_blocking();	
+	 	//multicore_lockout_end_blocking();	
 		error(2);
 	}
 	ROM[6002+45]='r';
@@ -696,7 +759,7 @@ int load_file(char *filename) {
 	// read the file to flash RAM
 	if (f_read(&fil, dst, sizeof(ROM)-1, &br) != FR_OK) {
 	//	ROM[6002+30]='!';
-	 	multicore_lockout_end_blocking();	
+	 	//multicore_lockout_end_blocking();	
 		error(3);
 	}
    //ROM[6002+46]='w';
@@ -706,7 +769,7 @@ closefile:
 cleanup:
 	f_mount(0, "", 1);
 
- 	multicore_lockout_end_blocking();	
+ 	//multicore_lockout_end_blocking();	
 	return br;
 }
 
@@ -861,45 +924,18 @@ void LoadGame(){
 		Pause long enough to read Coleco screen in case info 
 		needed for debugging/issue reproduction.
 		*/
-		sleep_ms(500);
+		//sleep_ms(500);
 	
 		/*
 		Set to an invalid rom type so the _not_in_rom will not
 		process data requests while loading.
 		*/
-		//bankswitch=-1;
+	    tmpBankSwitch = bksw;
+		bankswitch = -1;
 	    int br=load_file(path);  // load rom in files[]
-	    bankswitch=bksw;
-        
-		reset();
-		sleep_ms(5);
-		reset(); 
-	
-	/* 
-		ROM[6002+45]='L';
-	    sleep_ms(600);
-		if ((bksw==2)&&(ROM[0x1c000]!=0x55)) error(5);
-	
-		memset(str,32,8);
-		sprintf(str, "%d", br);
-		for (int i=0;i<8;i++) {
-			ROM[6002+46+i]=str[i];
-		}
-    */
-		
-	    //memcpy(ROM,flashROM,romsize);
-        //write_file("/last.bin");
-		
-		//sleep_ms(50); // time to let core1 realize...
-	
-		//reset(); 
-	
-		//sleep_ms(300);
- 		//reset();
-		//sleep_ms(300);
- 		//reset(); // just to be sure
-		
-       while(1);    
+		cartLoading = false;
+
+		while(1);    
   }
   
 }
@@ -910,6 +946,7 @@ void LoadGame(){
 void coleco_cart_main()
 {
     gpio_init_mask(ALL_GPIO_MASK);
+	tmpBankSwitch = 0;
 	bankswitch = -1;
 	/* 
 	Update: 2024-06-06
@@ -926,16 +963,15 @@ void coleco_cart_main()
     gpio_set_drive_strength(D6_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
     gpio_set_drive_strength(D7_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
     
+	multicore_launch_core1(core1_main);
+	//reset();
 	memset(ROM,0,BINLENGTH);	
 	memcpy(ROM,_acsplash,sizeof(_acsplash));
-	//sleep_ms(200);
-	//memset(ROM,0,BINLENGTH);	
-	//memcpy(ROM,_acsplash,sizeof(_acsplash));
 	curPath[0]=0;
-	bankswitch = 0;
 	fileda=0;
-	multicore_launch_core1(core1_main);
-    reset();
+//	reset();
+//	sleep_ms(10);
+	cartLoading = false;
 
 	// Initial conditions 
 	while (1) {
