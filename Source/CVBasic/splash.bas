@@ -6,7 +6,7 @@
 	'
 	' Creation date: Feb/29/2024.
 	'
-  // Mute SGM audio if installed
+  ' Mute SGM audio if installed
   out 80,8
   out 81,0
   out 80,9
@@ -227,7 +227,7 @@ reset_sound:    PROCEDURE
 setup_screen: PROCEDURE
    cls
    BORDER 4
-   print at 34+7,"PiCOLECO v.2.02M"
+   print at 34+7,"PiCOLECO v.2.12M"
   
    VPOKE $1800,130
    FOR c= 1 TO 30

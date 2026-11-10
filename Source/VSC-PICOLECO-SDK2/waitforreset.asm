@@ -1,12 +1,33 @@
+; Different headers needed for Colecovision and Pencil
+
 org $8000
-db	$55, $aa
-dw	$00
-dw	$00
-dw	$00
-dw	$00
-dw	start
+ifndef pencil
+	db	$55, $aa
+	dw	$00
+	dw	$00
+	dw	$00
+	dw	$00
+	dw	start
+else
+    db	"COPYRIGHT SOUNDIC"     ; Required $8000-$8010 signature
+    jp	start                   ; $8011: Main Entry
+    jp	nmi_handler             ; $8014: NMI Handler
+
+nmi_handler:
+	retn
+    
+org $8034
+	db	"2.02M!PICOLECO!2026"
+endif
 
 start:
+;	Disable Interrupts
+	di
+
+;	Not sure Pencil has peripherals at the SGM ports and
+;	no SGM support in current Pencil carts, so we will not
+;	do this just in case.
+ifndef pencil
 ;	Silence the SGM audio
 	ld b, 3			; Loop counter (3 channels: A, B, and C)
 	ld c, 8			; Start with Register 8 (Channel A Amplitude)
@@ -17,6 +38,7 @@ SgmLoop:
 	out ($51), a	; Send 0 to SGM Data Port
 	inc c			; Move to next register (9 = Chan B, 10 = Chan C)
 	djnz SgmLoop	; Decrement B and loop if B > 0
+endif
 
 ; Silence the PSG audio
 IinitPsgAudio:
@@ -73,9 +95,8 @@ loop1:
 	cp	-1			; -1 = not done
 	jr	z, loop		; Try again (wait until loaded)
 	ld	a,($8443)	; Let the PiColeco know you are reseting
-	ld	b, 100		; Loop counter (3 channels: A, B, and C)
+	ld	b, 100		; Loop counter
 loop2:
 	nop
 	djnz loop2		; Decrement B and loop if B > 0
-	jp	0			; Reset (Execute form location zero like power-up
-
+	jp	0			; Reset (Execute form location zero like power-up)

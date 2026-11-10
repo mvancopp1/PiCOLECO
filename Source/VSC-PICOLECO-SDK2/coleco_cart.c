@@ -30,8 +30,14 @@
 #include "hardware/sync.h"
 #include "coleco_cart.h"
 
-
+#ifndef pencil
 #include "rom.h"
+#include "waitforreset.h"
+#else
+#include "rom_pencil.h"
+#include "waitforreset_pencil.h"
+#endif
+
 
 #include "tusb.h"
 #include "ff.h"
@@ -141,16 +147,6 @@ int lastpos;
 volatile bool cartLoading = false;
 volatile int tmpBankSwitch = 0;
 volatile int bankswitch = 0;
-unsigned char resetCart[96] = {
-	0x55, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x80,
-	0x06, 0x03, 0x0E, 0x08, 0x79, 0xD3, 0x50, 0xAF, 0xD3, 0x51, 0x0C, 0x10,
-	0xF7, 0x3E, 0x9F, 0xD3, 0xFF, 0x3E, 0xBF, 0xD3, 0xFF, 0x3E, 0xDF, 0xD3,
-	0xFF, 0x3E, 0xFF, 0xD3, 0xFF, 0x3E, 0x00, 0xD3, 0xA1, 0x3E, 0x80, 0xD3,
-	0xA1, 0x3E, 0x00, 0xD3, 0xA1, 0x3E, 0x81, 0xD3, 0xA1, 0xDB, 0xA1, 0x21,
-	0x49, 0x80, 0x11, 0x00, 0x62, 0x01, 0x64, 0x00, 0xED, 0xB0, 0xC3, 0x00,
-	0x62, 0x3A, 0x42, 0x84, 0x06, 0x0A, 0x00, 0x10, 0xFD, 0xFE, 0xFF, 0x28,
-	0xF4, 0x3A, 0x43, 0x84, 0x06, 0x64, 0x00, 0x10, 0xFD, 0xC3, 0x00, 0x00
-};
 
 ////////////////////////////////////////////////////////////////////////////////////
 //                     Error(N)
@@ -207,7 +203,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 							SET_DATA_MODE_OUT;
 							gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
 							/*
-							Update: 2024-06-06
 							Wait for the cycle to complete before relasing the data. If we
 							release it to soon the data is intermittantly missed. This caused 
 							many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -222,7 +217,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 							SET_DATA_MODE_OUT;
 							gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
 							/*
-							Update: 2024-06-06
 							Wait for the cycle to complete before relasing the data. If we
 							release it to soon the data is intermittantly missed. This caused 
 							many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -239,7 +233,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 					SET_DATA_MODE_OUT;
 					gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
 					/*
-					Update: 2024-06-06
 					Wait for the cycle to complete before relasing the data. If we
 					release it to soon the data is intermittantly missed. This caused 
 					many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -262,7 +255,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 				SET_DATA_MODE_OUT;
 				gpio_put_masked(DATA_PIN_MASK,ROM[addr]<<16);
 				/*
-				Update: 2024-06-06
 				Wait for the cycle to complete before relasing the data. If we
 				release it to soon the data is intermittantly missed. This caused 
 				many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -304,7 +296,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 						SET_DATA_MODE_OUT;
 						gpio_put_masked(DATA_PIN_MASK,ROM[addr+romOffset]<<16);
 						/*
-						Update: 2024-06-06
 						Wait for the cycle to complete before relasing the data. If we
 						release it to soon the data is intermittantly missed. This caused 
 						many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -328,7 +319,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 						SET_DATA_MODE_OUT;
 						gpio_put_masked(DATA_PIN_MASK,ROM[addr+addrOffset]<<16);
 						/*
-						Update: 2024-06-06
 						Wait for the cycle to complete before relasing the data. If we
 						release it to soon the data is intermittantly missed. This caused 
 						many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -360,7 +350,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 								SET_DATA_MODE_OUT;
 								gpio_put_masked(DATA_PIN_MASK, 0);
 								/*
-								Update: 2024-06-06
 								Wait for the cycle to complete before relasing the data. If we
 								release it to soon the data is intermittantly missed. This caused 
 								many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -387,7 +376,6 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 								SET_DATA_MODE_OUT;
 								gpio_put_masked(DATA_PIN_MASK, ROM[addr + addrOffset] << 16);
 								/*
-								Update: 2024-06-06
 								Wait for the cycle to complete before relasing the data. If we
 								release it to soon the data is intermittantly missed. This caused 
 								many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -425,11 +413,10 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 							bankswitch = tmpBankSwitch;
 							break;
 						default:
-							gpio_put_masked(DATA_PIN_MASK, (resetCart[addr]) << 16);
+							gpio_put_masked(DATA_PIN_MASK, (_acwaitforreset[addr]) << 16);
 							break;
 					}
 					/*
-					Update: 2024-06-06
 					Wait for the cycle to complete before relasing the data. If we
 					release it to soon the data is intermittantly missed. This caused 
 					many cartridges to be flaky. We don't need more CPU sppeed, just 
@@ -456,19 +443,18 @@ __attribute__((optimize("O3"))) void __not_in_flash_func(core1_main()) {
 ////////////////////////////////////////////////////////////////////////////////////    
 void flexible_reset(uint loop_count) {
    
-  //multicore_lockout_start_blocking();	
+	//multicore_lockout_start_blocking();	
 
-  if (loop_count > 0) {
-	for (int i=0;i<6;i++) {
-		//while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
-		SET_DATA_MODE_OUT;
-		gpio_put_masked(DATA_PIN_MASK,0xc7<<16);
-		sleep_ms(5);
-		SET_DATA_MODE_IN;
+	if (loop_count > 0) {
+		for (int i=0;i<6;i++) {
+			//while (((gpio_get_all() & FLAG_MASK)>>FCE0_PIN)!=0b1111);
+			SET_DATA_MODE_OUT;
+			gpio_put_masked(DATA_PIN_MASK,0xc7<<16);
+			sleep_ms(5);
+			SET_DATA_MODE_IN;
+		}
 	}
-  }
 //  multicore_lockout_end_blocking();
-
 }       
 
 void reset()
@@ -498,9 +484,9 @@ int entry_compare(const void* p1, const void* p2)
 }
 
 char *get_filename_ext(char *filename) {
-    char *dot = strrchr(filename, '.');
-    if(!dot || dot == filename) return "";
-    return dot + 1;
+	char *dot = strrchr(filename, '.');
+	if(!dot || dot == filename) return "";
+	return dot + 1;
 }
 
 int is_valid_file(char *filename) {
@@ -515,24 +501,25 @@ char search_fname[FF_LFN_BUF + 1];
 
 // polyfill :-)
 char *stristr(const char *str, const char *strSearch) {
-    char *sors, *subs, *res = NULL;
-    if ((sors = strdup (str)) != NULL) {
-        if ((subs = strdup (strSearch)) != NULL) {
-            res = strstr (strlwr (sors), strlwr (subs));
-            if (res != NULL)
-                res = (char*)str + (res - sors);
-            free (subs);
-        }
-        free (sors);
-    }
-    return res;
+	char *sors, *subs, *res = NULL;
+	if ((sors = strdup (str)) != NULL) {
+		if ((subs = strdup (strSearch)) != NULL) {
+			res = strstr (strlwr (sors), strlwr (subs));
+			if (res != NULL) {
+				res = (char*)str + (res - sors);
+			}
+			free (subs);
+		}
+		free (sors);
+	}
+	return res;
 }
 
 int scan_files(char *path, char *search)
 {
-    FRESULT res;
-    DIR dir;
-    UINT i;
+	FRESULT res;
+	DIR dir;
+	UINT i;
 
 	res = f_opendir(&dir, path);
 	if (res == FR_OK) {
@@ -672,20 +659,20 @@ int filesize(char *filename) {
 	//int bytes_to_read = 128 * 1024;
 	int byteslong = f_size(&fil);
 	romsize=byteslong;
-	char tmp[2]={0,0};
+	char tmp[17]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     unsigned char *dst = &tmp[0];
 
-	f_read(&fil,dst,2,&br);
+	f_read(&fil,dst,17,&br);
 	bksw=1;
     if (romsize>(32*1024)) {
 		bksw=2;
 		if (romsize<128*1024) bksw=4;
 		/*
-		Update: 2024-06-06
 		Test for Magic Number of the Activision PCB cart bank switching.
 		These only support four banks of 16k so limit the size check.
 		*/
-    	if ((tmp[0]==0x55) && (tmp[1]==0xAA) && (romsize <= 64*1024)) bksw=3; //poi rimetti
+    	if (((tmp[0]==0x55) && (tmp[1]==0xAA) || (memcmp(tmp, "COPYRIGHT SOUNDIC", 17) == 0))
+			&& (romsize <= 64*1024)) bksw=3; 
 	
 	}
 //	error(bksw);
@@ -739,7 +726,6 @@ int load_file(char *filename) {
 	UINT bw = 0;
 
 	/*
-	Update: 2024-06-06
 	Pause other CPU when update the cartridge space.
 	*/
 	//multicore_lockout_start_blocking();	
@@ -753,8 +739,8 @@ int load_file(char *filename) {
 	 	//multicore_lockout_end_blocking();	
 		error(2);
 	}
-	ROM[6002+45]='r';
-    sleep_ms(600);	  
+	// ROM[6002+45]='r';
+    // sleep_ms(600);	  
 	unsigned char *dst = &ROM[0];
 	// read the file to flash RAM
 	if (f_read(&fil, dst, sizeof(ROM)-1, &br) != FR_OK) {
@@ -946,10 +932,20 @@ void LoadGame(){
 void coleco_cart_main()
 {
     gpio_init_mask(ALL_GPIO_MASK);
+	/* 
+	This is the final cart type desired (zero is the special menu screen type that
+	allows communications betwwen the menu cart and the Pico code (like fetching the
+	cart list).
+	*/
 	tmpBankSwitch = 0;
+	/*
+	This is the current cart type. Type -1 is for the special "waitforreset.asm"
+	created cart. The cart will	copy itself to the 1k Coleco ram and run from there. 
+	It will then wait for the final	cart selected to load and then reset the 
+	Colecovision so the final cart will be executed.
+	*/
 	bankswitch = -1;
 	/* 
-	Update: 2024-06-06
 	Some of the Pico boards do not drive enough current when
 	a SGM TTL is in the Coleco. We need to change the default 4ma drive 
 	strength to 8ma for the data lines. This is done here.
@@ -962,15 +958,22 @@ void coleco_cart_main()
     gpio_set_drive_strength(D5_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
     gpio_set_drive_strength(D6_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
     gpio_set_drive_strength(D7_PIN_NUMBER, GPIO_DRIVE_STRENGTH_8MA);
-    
+
+	/*
+	Start the second core so it can start serving the cart memory to the CV
+	*/
 	multicore_launch_core1(core1_main);
-	//reset();
-	memset(ROM,0,BINLENGTH);	
+	/*
+	Copy the Menu cart to ram (the special cart above is running while we load this cart).
+	*/
+   	//memset(ROM,0,BINLENGTH);	
 	memcpy(ROM,_acsplash,sizeof(_acsplash));
 	curPath[0]=0;
 	fileda=0;
-//	reset();
-//	sleep_ms(10);
+	/*
+	We are done loading the final cart so set the flag so the WaitForReset 
+	cart will reset the CV
+	*/
 	cartLoading = false;
 
 	// Initial conditions 

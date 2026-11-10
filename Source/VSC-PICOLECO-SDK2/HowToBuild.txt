@@ -1,0 +1,22 @@
+This system is built using VS Code with the Raspberry Pi extension.
+The extensions must be installed for VS Code before importing the project.
+Only the "VSC-PICOLECO-SDK2" is maintained. The older "VSC-PICOLECO" source is not used.
+To build:
+- Install VS Code.
+- Install Raspberry Pi extension(s). We will be building a Pico project.
+- Clone the repository locally.
+- Open the local PiColeco folder in VS Code.
+- VS Code will ask if you want to import the project, answer "yes" (do not use advanced options).
+- If VS asks which SDK to use, select v2.3.
+- Install CvBasic described below.
+- Once the import is complete and CvBasic is installed you should be able to build.
+
+- Install CvBasic v0.9.3 (in alpha as of this writing) or higher from nanocheese's web site (do not use the Atariage links to 4.4!).
+    - Download from 0.9.2 for here: https://github.com/nanochess/CVBasic/releases
+    - Download the 0.9.3 alpha zip from here and overwrite the three files in 0.9.2:
+        https://forums.atariage.com/topic/384096-colecovision-fantalicious-basic-compiler-cvbasic-v092-now-with-nesfamicommsx2fm-support/page/5/#findComment-5914063
+    - CvBasic 0.9.3 is needed to correctly generate the Pencil ROM selection screen. 0.9.2 and 0.9.3
+        will both correctly create the Colecovision ROM selection screen.
+    - For the build to work without changes you must install CvBasic as a peer to the "Source" directory
+        with the name "CvBasicCompiler".
+    - Within the "CvBasicCompiler" rename the directory "cvbasic_v0.9.2" (or whatever version you have) to just "cvbasic".
