@@ -27,51 +27,37 @@ set(PICO_BOARD myboard)
 pico_sdk_init()
 
 add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.bin"
+    OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.h"
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.asm
     COMMAND ${CMAKE_COMMAND} -E echo "assembling... waitforreset.asm"
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../../CvBasicCompiler/cvbasic/gasm80.exe ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.asm 
         -o ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.bin 
     COMMAND ${CMAKE_COMMAND} -E echo "completed assembling... waitforreset.asm"
-   COMMENT "Generating source code from script..."
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.h"
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.bin
-    COMMAND ${CMAKE_COMMAND} -E echo "converting to header... waitforreset.asm"
+    COMMAND ${CMAKE_COMMAND} -E echo "converting to header... waitforreset.bin"
     COMMAND ${CMAKE_COMMAND} 
         -DSOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.bin
         -DVARIABLE_NAME=_acwaitforreset
         -DHEADER_FILE=${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.h
         -P "${CMAKE_CURRENT_SOURCE_DIR}/bin2h.cmake"
-    COMMAND ${CMAKE_COMMAND} -E echo "completed converting to header... waitforreset.asm"
-    COMMENT "Generating source code from script..."
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/waitforreset_pencil.bin"
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.asm
-    COMMAND ${CMAKE_COMMAND} -E echo "assembling... waitforreset_pencil.asm"
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../../CvBasicCompiler/cvbasic/gasm80.exe -dpencil=1 ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.asm 
-        -o ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset_pencil.bin 
-    COMMAND ${CMAKE_COMMAND} -E echo "completed assembling... waitforreset_pencil.asm"
-    COMMENT "Generating source code from script..."
+    COMMAND ${CMAKE_COMMAND} -E echo "completed converting to header... waitforreset.bin"
+   COMMENT "Generating source code from script..."
     VERBATIM
 )
 
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/waitforreset_pencil.h"
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.bin
-    COMMAND ${CMAKE_COMMAND} -E echo "converting to header... waitforreset_pencil.asm"
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.asm
+    COMMAND ${CMAKE_COMMAND} -E echo "assembling... waitforreset_pencil.asm"
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../../CvBasicCompiler/cvbasic/gasm80.exe -dpencil=1 ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset.asm 
+        -o ${CMAKE_CURRENT_SOURCE_DIR}/waitforreset_pencil.bin 
+    COMMAND ${CMAKE_COMMAND} -E echo "completed assembling... waitforreset_pencil.asm"
+    COMMAND ${CMAKE_COMMAND} -E echo "converting to header... waitforreset_pencil.bin"
     COMMAND ${CMAKE_COMMAND} 
         -DSOURCE_FILE=${CMAKE_CURRENT_SOURCE_DIR}/waitforreset_pencil.bin
         -DVARIABLE_NAME=_acwaitforreset
         -DHEADER_FILE=${CMAKE_CURRENT_SOURCE_DIR}/waitforreset_pencil.h
         -P "${CMAKE_CURRENT_SOURCE_DIR}/bin2h.cmake"
-    COMMAND ${CMAKE_COMMAND} -E echo "completed converting to header... waitforreset_pencil.asm"
+    COMMAND ${CMAKE_COMMAND} -E echo "completed converting to header... waitforreset_pencil.bin"
     COMMENT "Generating source code from script..."
     VERBATIM
 )
